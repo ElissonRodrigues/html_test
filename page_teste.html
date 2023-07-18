@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Vídeos Ao Vivo do YouTube</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f2f2f2;
+      margin: 0;
+      padding: 0;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .video-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      grid-gap: 20px;
+    }
+    
+    .video-card {
+      position: relative;
+      background-color: #fff;
+      border-radius: 5px;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .video-thumbnail {
+      width: 100%;
+      height: auto;
+    }
+    
+    .play-button {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 80px;
+      height: 80px;
+      background-color: rgba(0, 0, 0, 0.7);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.3s, box-shadow 0.3s;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+    
+    .play-button:before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 0;
+      height: 0;
+      border-top: 16px solid transparent;
+      border-bottom: 16px solid transparent;
+      border-left: 24px solid #fff;
+    }
+    
+    .play-button:hover {
+      transform: translate(-50%, -50%) scale(1.1);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    }
+    
+    .play-button:hover:before {
+      border-left: 28px solid #fff;
+    }
+    
+    .play-icon {
+      font-size: 0;
+      line-height: 0;
+    }
+    
+    @media (max-width: 600px) {
+      .video-card {
+        border-radius: 0;
+      }
+    }
+
+    .video-player-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .video-player-container {
+      position: relative;
+      width: 100%;
+      height: 0;
+      padding-bottom: 56.25%; /* Aspect ratio 16:9 (dividir a altura pelo comprimento e multiplicar por 100) */
+    }
+
+    .video-player {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .close-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      color: #fff;
+      font-size: 20px;
+      cursor: pointer;
+    }
+
+    .video-details {
+      padding: 10px;
+    }
+
+    .video-title {
+      font-weight: bold;
+    }
+
+    .video-description {
+      font-size: 14px;
+    }
+
+    .error-message {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Vídeos Ao Vivo do YouTube</h1>
+    <div class="video-grid" id="videoGrid"></div>
+    <div class="video-player-overlay" id="videoPlayerOverlay">
+      <div class="video-player-container">
+        <div class="video-player">
+          <iframe src="" frameborder="0" allowfullscreen></iframe>
+        </div>
+      </div>
+      <div class="close-button" onclick="closeVideoPlayer()">&#10006;</div>
+    </div>
+    <p class="error-message" id="errorMessage"></p>
+  </div>
+
+  <script>
+    // ID do canal do YouTube
+    const channelID = 'UCGLsX_hLUxuqRkA-T1E0IuA';
+
+    // API Key do YouTube (gerada no console de desenvolvedor)
+    const apiKey = 'AFGijwicAqePaIAyOG-JUWYX8w';
+
+    // URL para buscar os vídeos ao vivo do canal
+    const liveVideosURL = `https://www.googleapis.com/youtube/v3/search?key=${apiKey}&channelId=${channelID}&part=snippet&type=video&eventType=live`;
+
+    // URL para buscar as últimas transmissões ao vivo do canal (caso não haja transmissão ao vivo no momento)
+    const recentVideosURL = `https://www.googleapis.com/youtube/v3/search?key=${apiKey}&channelId=${channelID}&part=snippet&type=video&order=date`;
+
+    // Função para obter os vídeos ao vivo ou as últimas transmissões ao vivo do canal
+    async function getLiveVideos() {
+      try {
+        let response = await fetch(liveVideosURL);
+        if (!response.ok) {
+          throw new Error(response.status);
+        }
+        let data = await response.json();
+
+        if (data.items.length === 0) {
+          // Se não houver vídeos ao vivo, buscar as últimas transmissões ao vivo
+          response = await fetch(recentVideosURL);
+          if (!response.ok) {
+            throw new Error(response.status);
+          }
+          data = await response.json();
+        }
+
+        if (data.items.length === 0) {
+          // Se ainda não houver vídeos, exibir mensagem de erro
+          displayErrorMessage('Nenhum vídeo ao vivo encontrado.');
+        } else {
+          displayVideos(data.items);
+        }
+      } catch (error) {
+        console.log('Ocorreu um erro:', error);
+        displayErrorMessage(`Erro ao carregar os vídeos. Status: ${error.message}`);
+      }
+    }
+
+    // Função para exibir os vídeos na grade
+    function displayVideos(videos) {
+      const videoGrid = document.getElementById('videoGrid');
+
+      videos.forEach(video => {
+        const videoCard = document.createElement('div');
+        videoCard.className = 'video-card';
+
+        const thumbnail = document.createElement('img');
+        thumbnail.className = 'video-thumbnail';
+        thumbnail.src = video.snippet.thumbnails.medium.url;
+        videoCard.appendChild(thumbnail);
+
+        const playButton = document.createElement('div');
+        playButton.className = 'play-button';
+        playButton.innerHTML = '<i class="play-icon"></i>';
+        playButton.addEventListener('click', () => playVideo(video.id.videoId));
+        videoCard.appendChild(playButton);
+
+        const videoDetails = document.createElement('div');
+        videoDetails.className = 'video-details';
+
+        const videoTitle = document.createElement('p');
+        videoTitle.className = 'video-title';
+        videoTitle.innerHTML = video.snippet.title;
+        videoDetails.appendChild(videoTitle);
+
+        const videoDescription = document.createElement('p');
+        videoDescription.className = 'video-description';
+        videoDescription.innerHTML = video.snippet.description;
+        videoDetails.appendChild(videoDescription);
+
+        videoCard.appendChild(videoDetails);
+
+        videoGrid.appendChild(videoCard);
+      });
+    }
+
+    // Função para reproduzir o vídeo ao vivo no reprodutor incorporado
+    function playVideo(videoId) {
+      const videoPlayerOverlay = document.getElementById('videoPlayerOverlay');
+      const videoPlayerContainer = document.querySelector('.video-player-container');
+      const videoPlayer = videoPlayerContainer.querySelector('iframe');
+
+      videoPlayer.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+
+      videoPlayerOverlay.style.display = 'flex';
+    }
+
+    // Função para fechar o reprodutor
+    function closeVideoPlayer() {
+      const videoPlayerOverlay = document.getElementById('videoPlayerOverlay');
+      const videoPlayerContainer = document.querySelector('.video-player-container');
+      const videoPlayer = videoPlayerContainer.querySelector('iframe');
+
+      videoPlayer.src = '';
+
+      videoPlayerOverlay.style.display = 'none';
+    }
+
+    // Função para exibir uma mensagem de erro
+    function displayErrorMessage(message) {
+      const errorMessage = document.getElementById('errorMessage');
+      errorMessage.textContent = message;
+    }
+
+    // Chamar a função para obter os vídeos ao vivo
+    getLiveVideos();
+  </script>
+</body>
+        </html>
+        
